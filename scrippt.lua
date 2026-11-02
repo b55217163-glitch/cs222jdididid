@@ -490,7 +490,10 @@ end
 
 local function fireAll(remote, ...)
     if not remote then return false end
-    pcall(function() remote:FireServer(...) end)
+    local args = table.pack(...)
+    pcall(function()
+        remote:FireServer(table.unpack(args, 1, args.n))
+    end)
     return true
 end
 
