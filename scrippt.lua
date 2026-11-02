@@ -1,11 +1,3 @@
---[[
-    ShitaroMenu — DracoHub Skills Edition
-    UI каркас: ShitaroMenuOnly (сохранён)
-    Функционал: скиллы из DracoHub_ScannerV7
-    Установка: LocalScript в StarterPlayer > StarterPlayerScripts
-    Вкладки: skills, mobile (aim/trigger/visuals/skins/settings удалены)
-]]
-
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -20,9 +12,6 @@ local playerGui = player:WaitForChild("PlayerGui")
 local previous = playerGui:FindFirstChild("ShitaroMenuOnly")
 if previous then previous:Destroy() end
 
---==============================================================
--- ПАЛИТРА / ШРИФТЫ / ИКОНКИ
---==============================================================
 local colors = {
     bg     = Color3.fromRGB(7, 7, 9),
     text   = Color3.fromRGB(230, 230, 236),
@@ -55,9 +44,6 @@ local icons = {
     phone     = 127234874352422,
 }
 
---==============================================================
--- ХЕЛПЕРЫ
---==============================================================
 local function make(class, props, parent)
     local o = Instance.new(class)
     if o:IsA("GuiObject") then
@@ -121,9 +107,6 @@ local function animate(obj, props, dur)
     ):Play()
 end
 
---==============================================================
--- КОРНЕВОЙ GUI
---==============================================================
 local gui = make("ScreenGui", {
     Name = "ShitaroMenuOnly",
     IgnoreGuiInset = true,
@@ -145,9 +128,6 @@ connect(gui.Destroying, function()
     for _, c in ipairs(connections) do c:Disconnect() end
 end)
 
---==============================================================
--- ОКНО
---==============================================================
 local window = make("Frame", {
     Name = "Menu",
     Position = UDim2.fromOffset(0, 0),
@@ -254,9 +234,6 @@ local body = make("Frame", {
     Size = UDim2.new(1, 0, 1, -89),
 }, window)
 
---==============================================================
--- НАВИГАЦИЯ — только 2 вкладки
---==============================================================
 local nav = make("Frame", {
     AnchorPoint = Vector2.new(0.5, 1),
     Position = UDim2.new(0.5, 0, 1, -9),
@@ -315,7 +292,6 @@ local function drawTab(tab)
     tab.page.Visible = active
 end
 
--- ВАЖНО: только 2 вкладки — никакого aim/trigger/visuals/skins/settings
 for index, entry in ipairs({
     { "skills", "skills" },
     { "mobile", "phone"  },
@@ -374,9 +350,6 @@ local grip = make("ImageButton", {
     ZIndex = 10,
 }, window)
 
---==============================================================
--- WATERMARK
---==============================================================
 local inset = GuiService:GetGuiInset()
 local watermark = make("TextButton", {
     Name = "Watermark",
@@ -475,9 +448,11 @@ for index, name in ipairs({"User","FPS","Ping","RAM","Time"}) do
     values[name] = watermarkText(group, name == "User" and player.Name or "-", 3)
 end
 
---==============================================================
--- REMOTE / SKILLS LAYER
---==============================================================
+-- ПЕРЕНЕСЕНО ВЫШЕ, ЧТОБЫ ИЗБЕЖАТЬ NIL
+local skillStates = {}
+local floatButtons = {}
+local pageToggleSyncers = {}
+
 local RS_Characters = ReplicatedStorage:FindFirstChild("Characters")
 local function findRemote(charName, remoteName)
     if not RS_Characters then return nil end
@@ -491,9 +466,7 @@ end
 local function fireAll(remote, ...)
     if not remote then return false end
     local args = table.pack(...)
-    pcall(function()
-        remote:FireServer(table.unpack(args, 1, args.n))
-    end)
+    pcall(function() remote:FireServer(table.unpack(args, 1, args.n)) end)
     return true
 end
 
@@ -508,7 +481,6 @@ local function firePlayer(remote, target)
     return true
 end
 
--- ЗАЩИТА: ищем только игрока (не NPC)
 local function nearestPlayer(maxDist)
     maxDist = maxDist or math.huge
     local myChar = player.Character
@@ -532,12 +504,8 @@ local function nearestPlayer(maxDist)
     return best
 end
 
---==============================================================
--- РЕАЛИЗАЦИЯ СКИЛЛОВ (из DracoHub)
---==============================================================
 local skills = {}
 
--- Общий Homelander HitGround (Laser/Flashstrike/Upthrow/Kick/OnePunch)
 local function homelanderHit(target)
     target = target or nearestPlayer(50)
     if not target then return false end
@@ -551,14 +519,12 @@ skills["Upthrow"]       = { key = "B", fn = function() return homelanderHit(near
 skills["OnePunch"]      = { key = "V", fn = function() return homelanderHit(nearestPlayer(15)) end }
 skills["Ramkill"]       = { key = "C", fn = function() return homelanderHit(nearestPlayer(10)) end }
 
--- Tear (Demogorgon ComboWeak)
 skills["Tear"] = { key = "H", fn = function()
     local r = findRemote("Demogorgon", "ComboWeak") or findRemote("Ghostface", "ComboWeak")
     if not r then return false end
     return fireAll(r)
 end }
 
--- SCP-173 Bash2
 skills["SCP173"] = { key = "F", fn = function()
     local r = findRemote("SCPGuard", "Bash2")
     if not r then return false end
@@ -567,35 +533,30 @@ skills["SCP173"] = { key = "F", fn = function()
     return firePlayer(r, t)
 end }
 
--- Speed Crash (The Flash CW)
 skills["Speed Crash"] = { key = "G", fn = function()
     local r = findRemote("TheFlashCW", "HitGround")
     if not r then return false end
     return firePlayer(r, nearestPlayer(30))
 end }
 
--- A-Train Finish (Steve_H)
 skills["A-Train Finish"] = { key = "T", fn = function()
     local r = findRemote("Steve_H", "Bash2") or findRemote("Steve", "Drag")
     if not r then return false end
     return firePlayer(r, nearestPlayer(15))
 end }
 
--- Kira Death Note (Counter + HitGround)
 skills["Kira Kill"] = { key = "R", fn = function()
     local r = findRemote("Kira", "HitGround")
     if not r then return false end
     return firePlayer(r, nearestPlayer(30))
 end }
 
--- Pounce (Steve)
 skills["Pounce"] = { key = "Q", fn = function()
     local r = findRemote("Steve", "Drag")
     if not r then return false end
     return firePlayer(r, nearestPlayer(20))
 end }
 
--- Myers групповые
 skills["Neck Snap"] = { key = "N", fn = function()
     local r = findRemote("Myers", "HitGround") or findRemote("Michael", "HitGround")
     if not r then return false end
@@ -609,14 +570,12 @@ skills["Terror Blade"] = { key = "M", fn = function()
 end }
 
 skills["Stalk Mode"] = { key = "P", fn = function()
-    -- Активация стойки Мейерса
     local char = player.Character
     if not char then return false end
     player:SetAttribute("YYDSStalkMode", not (player:GetAttribute("YYDSStalkMode") == true))
     return true
 end }
 
--- X-Regen (Life Insure) — цикл, включается/выключается
 local xRegenRunning = false
 local function xRegenLoop()
     if xRegenRunning then return end
@@ -642,7 +601,6 @@ skills["X-Regen"] = { key = "K", toggle = true, fn = function(on)
     return true
 end }
 
--- Homelander Fly (локальный — BodyVelocity + анимация)
 local flyConn, flyBV
 skills["Homelander Fly"] = { key = "Y", toggle = true, fn = function(on)
     local char = player.Character
@@ -679,9 +637,6 @@ skills["Homelander Fly"] = { key = "Y", toggle = true, fn = function(on)
     return true
 end }
 
---==============================================================
--- ВКЛАДКА SKILLS — построение карточек
---==============================================================
 local skillsPage = tabs[1].page
 local skillsScroll = make("ScrollingFrame", {
     Size = UDim2.fromScale(1, 1),
@@ -748,11 +703,14 @@ local function skillRow(name, cfg)
             state = not state
             animate(track, {BackgroundColor3 = state and colors.on or colors.off})
             animate(knob, {Position = UDim2.new(0, state and 16 or 2, 0.5, 0)})
-            local ok, res = pcall(cfg.fn, state)
-            -- синхронизируем с плавающей кнопкой
+            pcall(cfg.fn, state)
             if skillStates[name] ~= nil then
                 skillStates[name] = state
-                syncFloatButton(name, state)
+                if floatButtons[name] then
+                    floatButtons[name].BackgroundColor3 = state
+                        and Color3.fromRGB(50, 110, 60)
+                        or Color3.fromRGB(40, 30, 60)
+                end
             end
         end)
         skillStates[name] = false
@@ -779,9 +737,6 @@ local function skillRow(name, cfg)
     return card
 end
 
---==============================================================
--- FLOATING BUTTONS (Mobile)
---==============================================================
 local floatGui = make("ScreenGui", {
     Name = "DracoHubFloatingButtons",
     ResetOnSpawn = false,
@@ -789,9 +744,6 @@ local floatGui = make("ScreenGui", {
     DisplayOrder = 9999,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 }, playerGui)
-
-local skillStates = {}
-local floatButtons = {}
 
 local function createFloatButton(name)
     if floatButtons[name] then return floatButtons[name] end
@@ -814,7 +766,6 @@ local function createFloatButton(name)
     corner(btn, UDim.new(0, 8))
     stroke(btn, 0.85)
 
-    -- draggable
     local dragging, dragStart, startPos
     connect(btn.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
@@ -851,8 +802,9 @@ local function createFloatButton(name)
                 btn.BackgroundColor3 = newState
                     and Color3.fromRGB(50, 110, 60)
                     or Color3.fromRGB(40, 30, 60)
-                -- синхронизация со страницей skills
-                syncPageToggle(name, newState)
+                if pageToggleSyncers[name] then
+                    pageToggleSyncers[name](newState)
+                end
             else
                 pcall(cfg.fn)
             end
@@ -863,303 +815,4 @@ local function createFloatButton(name)
     return btn
 end
 
-function syncFloatButton(name, state)
-    local btn = floatButtons[name]
-    if btn then
-        btn.BackgroundColor3 = state
-            and Color3.fromRGB(50, 110, 60)
-            or Color3.fromRGB(40, 30, 60)
-    end
-end
-
-local pageToggleSyncers = {}
-function syncPageToggle(name, state)
-    if pageToggleSyncers[name] then
-        pageToggleSyncers[name](state)
-    end
-end
-
--- Создаём кнопки для всех скиллов + строки на странице skills
-for name, cfg in pairs(skills) do
-    createFloatButton(name)
-    local card = skillRow(name, cfg)
-    -- сохраняем синхронизатор для тогглов
-    if cfg.toggle then
-        local track = card:FindFirstChildOfClass("Frame")
-        local knob = track and track:FindFirstChildOfClass("Frame")
-        if track and knob then
-            pageToggleSyncers[name] = function(state)
-                animate(track, {BackgroundColor3 = state and colors.on or colors.off})
-                animate(knob, {Position = UDim2.new(0, state and 16 or 2, 0.5, 0)})
-            end
-        end
-    end
-end
-
---==============================================================
--- ВКЛАДКА MOBILE — управление плавающими кнопками
---==============================================================
-local mobilePage = tabs[2].page
-local mobileScroll = make("ScrollingFrame", {
-    Size = UDim2.fromScale(1, 1),
-    CanvasSize = UDim2.fromOffset(0, 0),
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    ScrollBarThickness = 2,
-    ScrollBarImageColor3 = colors.dim,
-    ScrollingDirection = Enum.ScrollingDirection.Y,
-}, mobilePage)
-padding(mobileScroll, 10, 10, 10, 10)
-make("UIListLayout", {
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    Padding = UDim.new(0, 6),
-}, mobileScroll)
-
-local sortedNames = {}
-for name in pairs(skills) do table.insert(sortedNames, name) end
-table.sort(sortedNames)
-
-for _, name in ipairs(sortedNames) do
-    local row = make("Frame", {
-        Size = UDim2.new(1, 0, 0, 34),
-        BackgroundColor3 = Color3.new(1,1,1),
-        BackgroundTransparency = 0.965,
-        LayoutOrder = #mobileScroll:GetChildren(),
-    }, mobileScroll)
-    corner(row, UDim.new(0, 6))
-
-    make("TextLabel", {
-        Text = name,
-        TextSize = 12,
-        TextColor3 = colors.text,
-        Position = UDim2.fromOffset(10, 0),
-        Size = UDim2.new(0.7, -10, 1, 0),
-    }, row)
-
-    local track = make("Frame", {
-        AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -10, 0.5, 0),
-        Size = UDim2.fromOffset(28, 14),
-        BackgroundColor3 = colors.off,
-    }, row)
-    corner(track, UDim.new(1,0))
-    local knob = make("Frame", {
-        AnchorPoint = Vector2.new(0, 0.5),
-        Position = UDim2.new(0, 2, 0.5, 0),
-        Size = UDim2.fromOffset(10, 10),
-        BackgroundColor3 = colors.sub,
-    }, track)
-    corner(knob, UDim.new(1,0))
-
-    local btn = make("TextButton", {Size = UDim2.fromScale(1,1), ZIndex = 5}, row)
-    local visible = false
-    connect(btn.Activated, function()
-        visible = not visible
-        local fb = floatButtons[name]
-        if fb then fb.Visible = visible end
-        animate(track, {BackgroundColor3 = visible and colors.on or colors.off})
-        animate(knob, {Position = UDim2.new(0, visible and 14 or 2, 0.5, 0)})
-    end)
-end
-
---==============================================================
--- КНОПКИ PC (клавиши)
---==============================================================
-connect(UserInputService.InputBegan, function(input, gpe)
-    if gpe then return end
-    if UserInputService:GetFocusedTextBox() then return end
-    if input.KeyCode == Enum.KeyCode.Insert then
-        window.Visible = not window.Visible
-        return
-    end
-    for name, cfg in pairs(skills) do
-        if cfg.key and input.KeyCode == Enum.KeyCode[cfg.key] then
-            if cfg.toggle then
-                local newState = not (skillStates[name] == true)
-                skillStates[name] = newState
-                pcall(cfg.fn, newState)
-                syncFloatButton(name, newState)
-                syncPageToggle(name, newState)
-            else
-                pcall(cfg.fn)
-            end
-            break
-        end
-    end
-end)
-
---==============================================================
--- DRAG / RESIZE / LAYOUT
---==============================================================
-local gesture
-local safeOrigin = Vector2.zero
-local safeSize = Vector2.new(780, 470)
-local activeSlider
-local uiState = {}
-
-local function layoutSkills()
-    -- карточки и так по UIListLayout
-end
-
-local function clampWindow()
-    local size = window.AbsoluteSize
-    local p = window.Position
-    window.Position = UDim2.fromOffset(
-        math.clamp(p.X.Offset, safeOrigin.X, safeOrigin.X + math.max(0, safeSize.X - size.X)),
-        math.clamp(p.Y.Offset, safeOrigin.Y, safeOrigin.Y + math.max(0, safeSize.Y - size.Y))
-    )
-end
-
-local function layoutNavigation()
-    local width = window.Size.X.Offset
-    local touch = UserInputService.TouchEnabled
-    local narrow = width < 620
-    local cellHeight = touch and 44 or 26
-
-    local navHeight = narrow and (cellHeight * 2 + 8) or (cellHeight + 6)
-    nav.Size = UDim2.fromOffset(narrow and (width - 20) or 0, navHeight)
-    nav.AutomaticSize = narrow and Enum.AutomaticSize.None or Enum.AutomaticSize.X
-    navCorner.CornerRadius = UDim.new(0, narrow and 12 or math.floor(navHeight / 2))
-    body.Size = UDim2.new(1, 0, 1, -(41 + navHeight + 17))
-    tabRow.Size = UDim2.fromOffset(narrow and (width - 26) or 0, navHeight - 6)
-    tabRow.AutomaticSize = narrow and Enum.AutomaticSize.None or Enum.AutomaticSize.X
-
-    local useGrid = navigationLayout:IsA("UIGridLayout")
-    if narrow ~= useGrid then
-        navigationLayout:Destroy()
-        if narrow then
-            navigationLayout = make("UIGridLayout", {
-                SortOrder = Enum.SortOrder.LayoutOrder,
-                FillDirection = Enum.FillDirection.Horizontal,
-                FillDirectionMaxCells = 2,
-            }, tabRow)
-        else
-            navigationLayout = rowLayout(tabRow, 2)
-        end
-    end
-
-    if narrow then
-        navigationLayout.CellPadding = UDim2.fromOffset(2, 2)
-        navigationLayout.CellSize = UDim2.new(1/2, -2, 0, cellHeight)
-    end
-
-    for _, tab in ipairs(tabs) do
-        tab.button.AutomaticSize = narrow and Enum.AutomaticSize.None or Enum.AutomaticSize.X
-        tab.button.Size = UDim2.fromOffset(0, cellHeight)
-    end
-
-    highlight.Visible = not narrow
-    for _, tab in ipairs(tabs) do
-        tab.button.BackgroundColor3 = Color3.new(1,1,1)
-        tab.button.BackgroundTransparency = narrow and tab == selected and 0.925 or 1
-    end
-
-    task.defer(updateHighlight)
-end
-
-local function fitScreen()
-    gesture = nil
-    watermark.Position = UDim2.new(1, 0, 0, 0)
-    local viewport = gui.AbsoluteSize
-    safeOrigin = Vector2.zero
-    safeSize = Vector2.new(math.max(1, viewport.X), math.max(1, viewport.Y))
-
-    local referenceScale = math.min(safeSize.X / 1568, safeSize.Y / 724)
-    menuScale.Scale = (1076 / 780) * referenceScale
-    window.Size = UDim2.fromOffset(780, 470)
-    window.Position = UDim2.fromOffset(
-        (safeSize.X - 1568 * referenceScale) / 2 + 224 * referenceScale,
-        (safeSize.Y - 724 * referenceScale) / 2 + 14 * referenceScale
-    )
-    layoutNavigation()
-end
-
-connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitScreen)
-connect(window:GetPropertyChangedSignal("Size"), layoutNavigation)
-connect(UserInputService:GetPropertyChangedSignal("TouchEnabled"), layoutNavigation)
-for _, tab in ipairs(tabs) do
-    connect(tab.button.Activated, function() task.defer(layoutNavigation) end)
-end
-
---==============================================================
--- INPUT GESTURES
---==============================================================
-local function beginGesture(input, target, resize)
-    if input.UserInputType ~= Enum.UserInputType.MouseButton1
-        and input.UserInputType ~= Enum.UserInputType.Touch then return end
-    gesture = {
-        input = input, target = target, resize = resize,
-        origin = input.Position, position = target.Position,
-        size = target.Size, scale = menuScale.Scale,
-    }
-end
-
-dragHandle.ZIndex = 30
-dragHandle.Active = true
-connect(dragHandle.InputBegan, function(input)
-    if not window.Visible then return end
-    beginGesture(input, window, false)
-end)
-connect(grip.InputBegan, function(input)
-    beginGesture(input, window, true)
-end)
-
-local function toggleMenu()
-    window.Visible = not window.Visible
-    gesture = nil
-    if window.Visible then clampWindow() end
-end
-connect(watermark.Activated, toggleMenu)
-
-connect(UserInputService.InputChanged, function(input)
-    if not gesture then return end
-    if input.UserInputType ~= Enum.UserInputType.MouseMovement
-        and input ~= gesture.input then return end
-    local delta = input.Position - gesture.origin
-
-    if gesture.resize then
-        local maximum = math.max(0.01, math.min(safeSize.X / 780, safeSize.Y / 470))
-        menuScale.Scale = math.clamp(
-            gesture.scale + delta.X / 780,
-            math.min(0.2, maximum),
-            maximum
-        )
-        task.defer(updateHighlight)
-    else
-        local p = gesture.position
-        gesture.target.Position = UDim2.new(
-            p.X.Scale, p.X.Offset + delta.X,
-            p.Y.Scale, p.Y.Offset + delta.Y
-        )
-    end
-    clampWindow()
-end)
-
-connect(UserInputService.InputEnded, function(input)
-    if gesture and input == gesture.input then
-        gesture = nil
-    end
-end)
-connect(UserInputService.WindowFocusReleased, function()
-    gesture = nil
-end)
-
---==============================================================
--- WATERMARK UPDATE
---==============================================================
-local frames, elapsed = 0, 0
-connect(RunService.Heartbeat, function(dt)
-    frames = frames + 1
-    elapsed = elapsed + dt
-    if elapsed < 0.5 then return end
-    values.FPS.Text = tostring(math.floor(frames / elapsed + 0.5))
-    frames, elapsed = 0, 0
-
-    local ok, ping = pcall(player.GetNetworkPing, player)
-    values.Ping.Text = ok and (math.floor(ping * 1000 + 0.5) .. "ms") or "-"
-
-    local mok, mem = pcall(Stats.GetTotalMemoryUsageMb, Stats)
-    values.RAM.Text = mok and (math.floor(mem + 0.5) .. "mb") or "-"
-    values.Time.Text = os.date("%H:%M")
-end)
-
-task.defer(fitScreen)
+for name, cfg in pairs
