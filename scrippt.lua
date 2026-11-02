@@ -448,7 +448,7 @@ for index, name in ipairs({"User","FPS","Ping","RAM","Time"}) do
     values[name] = watermarkText(group, name == "User" and player.Name or "-", 3)
 end
 
--- ПЕРЕНЕСЕНО ВЫШЕ, ЧТОБЫ ИЗБЕЖАТЬ NIL
+-- ПЕРЕНЕСЕНО ВЫШЕ ДЛЯ ИСПРАВЛЕНИЯ ОШИБКИ NIL
 local skillStates = {}
 local floatButtons = {}
 local pageToggleSyncers = {}
@@ -815,4 +815,272 @@ local function createFloatButton(name)
     return btn
 end
 
-for name, cfg in pairs
+for name, cfg in pairs(skills) do
+    createFloatButton(name)
+    local card = skillRow(name, cfg)
+    if cfg.toggle then
+        local track = card:FindFirstChildOfClass("Frame")
+        local knob = track and track:FindFirstChildOfClass("Frame")
+        if track and knob then
+            pageToggleSyncers[name] = function(state)
+                animate(track, {BackgroundColor3 = state and colors.on or colors.off})
+                animate(knob, {Position = UDim2.new(0, state and 16 or 2, 0.5, 0)})
+            end
+        end
+    end
+end
+
+local mobilePage = tabs[2].page
+local mobileScroll = make("ScrollingFrame", {
+    Size = UDim2.fromScale(1, 1),
+    CanvasSize = UDim2.fromOffset(0, 0),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    ScrollBarThickness = 2,
+    ScrollBarImageColor3 = colors.dim,
+    ScrollingDirection = Enum.ScrollingDirection.Y,
+}, mobilePage)
+padding(mobileScroll, 10, 10, 10, 10)
+make("UIListLayout", {
+    SortOrder = Enum.SortOrder.LayoutOrder,
+    Padding = UDim.new(0, 6),
+}, mobileScroll)
+
+local sortedNames = {}
+for name in pairs(skills) do table.insert(sortedNames, name) end
+table.sort(sortedNames)
+
+for _, name in ipairs(sortedNames) do
+    local row = make("Frame", {
+        Size = UDim2.new(1, 0, 0, 34),
+        BackgroundColor3 = Color3.new(1,1,1),
+        BackgroundTransparency = 0.965,
+        LayoutOrder = #mobileScroll:GetChildren(),
+    }, mobileScroll)
+    corner(row, UDim.new(0, 6))
+
+    make("TextLabel", {
+        Text = name,
+        TextSize = 12,
+        TextColor3 = colors.text,
+        Position = UDim2.fromOffset(10, 0),
+        Size = UDim2.new(0.7, -10, 1, 0),
+    }, row)
+
+    local track = make("Frame", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -10, 0.5, 0),
+        Size = UDim2.fromOffset(28, 14),
+        BackgroundColor3 = colors.off,
+    }, row)
+    corner(track, UDim.new(1,0))
+    local knob = make("Frame", {
+        AnchorPoint = Vector2.new(0, 0.5),
+        Position = UDim2.new(0, 2, 0.5, 0),
+        Size = UDim2.fromOffset(10, 10),
+        BackgroundColor3 = colors.sub,
+    }, track)
+    corner(knob, UDim.new(1,0))
+
+    local btn = make("TextButton", {Size = UDim2.fromScale(1,1), ZIndex = 5}, row)
+    local visible = false
+    connect(btn.Activated, function()
+        visible = not visible
+        local fb = floatButtons[name]
+        if fb then fb.Visible = visible end
+        animate(track, {BackgroundColor3 = visible and colors.on or colors.off})
+        animate(knob, {Position = UDim2.new(0, visible and 14 or 2, 0.5, 0)})
+    end)
+end
+
+connect(UserInputService.InputBegan, function(input, gpe)
+    if gpe then return end
+    if UserInputService:GetFocusedTextBox() then return end
+    if input.KeyCode == Enum.KeyCode.Insert then
+        window.Visible = not window.Visible
+        return
+    end
+    for name, cfg in pairs(skills) do
+        if cfg.key and input.KeyCode == Enum.KeyCode[cfg.key] then
+            if cfg.toggle then
+                local newState = not (skillStates[name] == true)
+                skillStates[name] = newState
+                pcall(cfg.fn, newState)
+                if floatButtons[name] then
+                    floatButtons[name].BackgroundColor3 = newState
+                        and Color3.fromRGB(50, 110, 60)
+                        or Color3.fromRGB(40, 30, 60)
+                end
+                if pageToggleSyncers[name] then
+                    pageToggleSyncers[name](newState)
+                end
+            else
+                pcall(cfg.fn)
+            end
+            break
+        end
+    end
+end)
+
+local gesture
+local safeOrigin = Vector2.zero
+local safeSize = Vector2.new(780, 470)
+local activeSlider
+local uiState = {}
+
+local function clampWindow()
+    local size = window.AbsoluteSize
+    local p = window.Position
+    window.Position = UDim2.fromOffset(
+        math.clamp(p.X.Offset, safeOrigin.X, safeOrigin.X + math.max(0, safeSize.X - size.X)),
+        math.clamp(p.Y.Offset, safeOrigin.Y, safeOrigin.Y + math.max(0, safeSize.Y - size.Y))
+    )
+end
+
+local function layoutNavigation()
+    local width = window.Size.X.Offset
+    local touch = UserInputService.TouchEnabled
+    local narrow = width < 620
+    local cellHeight = touch and 44 or 26
+
+    local navHeight = narrow and (cellHeight * 2 + 8) or (cellHeight + 6)
+    nav.Size = UDim2.fromOffset(narrow and (width - 20) or 0, navHeight)
+    nav.AutomaticSize = narrow and Enum.AutomaticSize.None or Enum.AutomaticSize.X
+    navCorner.CornerRadius = UDim.new(0, narrow and 12 or math.floor(navHeight / 2))
+    body.Size = UDim2.new(1, 0, 1, -(41 + navHeight + 17))
+    tabRow.Size = UDim2.fromOffset(narrow and (width - 26) or 0, navHeight - 6)
+    tabRow.AutomaticSize = narrow and Enum.AutomaticSize.None or Enum.AutomaticSize.X
+
+    local useGrid = navigationLayout:IsA("UIGridLayout")
+    if narrow ~= useGrid then
+        navigationLayout:Destroy()
+        if narrow then
+            navigationLayout = make("UIGridLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                FillDirection = Enum.FillDirection.Horizontal,
+                FillDirectionMaxCells = 2,
+            }, tabRow)
+        else
+            navigationLayout = rowLayout(tabRow, 2)
+        end
+    end
+
+    if narrow then
+        navigationLayout.CellPadding = UDim2.fromOffset(2, 2)
+        navigationLayout.CellSize = UDim2.new(1/2, -2, 0, cellHeight)
+    end
+
+    for _, tab in ipairs(tabs) do
+        tab.button.AutomaticSize = narrow and Enum.AutomaticSize.None or Enum.AutomaticSize.X
+        tab.button.Size = UDim2.fromOffset(0, cellHeight)
+    end
+
+    highlight.Visible = not narrow
+    for _, tab in ipairs(tabs) do
+        tab.button.BackgroundColor3 = Color3.new(1,1,1)
+        tab.button.BackgroundTransparency = narrow and tab == selected and 0.925 or 1
+    end
+
+    task.defer(updateHighlight)
+end
+
+local function fitScreen()
+    gesture = nil
+    watermark.Position = UDim2.new(1, 0, 0, 0)
+    local viewport = gui.AbsoluteSize
+    safeOrigin = Vector2.zero
+    safeSize = Vector2.new(math.max(1, viewport.X), math.max(1, viewport.Y))
+
+    local referenceScale = math.min(safeSize.X / 1568, safeSize.Y / 724)
+    menuScale.Scale = (1076 / 780) * referenceScale
+    window.Size = UDim2.fromOffset(780, 470)
+    window.Position = UDim2.fromOffset(
+        (safeSize.X - 1568 * referenceScale) / 2 + 224 * referenceScale,
+        (safeSize.Y - 724 * referenceScale) / 2 + 14 * referenceScale
+    )
+    layoutNavigation()
+end
+
+connect(gui:GetPropertyChangedSignal("AbsoluteSize"), fitScreen)
+connect(window:GetPropertyChangedSignal("Size"), layoutNavigation)
+connect(UserInputService:GetPropertyChangedSignal("TouchEnabled"), layoutNavigation)
+for _, tab in ipairs(tabs) do
+    connect(tab.button.Activated, function() task.defer(layoutNavigation) end)
+end
+
+local function beginGesture(input, target, resize)
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1
+        and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    gesture = {
+        input = input, target = target, resize = resize,
+        origin = input.Position, position = target.Position,
+        size = target.Size, scale = menuScale.Scale,
+    }
+end
+
+dragHandle.ZIndex = 30
+dragHandle.Active = true
+connect(dragHandle.InputBegan, function(input)
+    if not window.Visible then return end
+    beginGesture(input, window, false)
+end)
+connect(grip.InputBegan, function(input)
+    beginGesture(input, window, true)
+end)
+
+local function toggleMenu()
+    window.Visible = not window.Visible
+    gesture = nil
+    if window.Visible then clampWindow() end
+end
+connect(watermark.Activated, toggleMenu)
+
+connect(UserInputService.InputChanged, function(input)
+    if not gesture then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement
+        and input ~= gesture.input then return end
+    local delta = input.Position - gesture.origin
+
+    if gesture.resize then
+        local maximum = math.max(0.01, math.min(safeSize.X / 780, safeSize.Y / 470))
+        menuScale.Scale = math.clamp(
+            gesture.scale + delta.X / 780,
+            math.min(0.2, maximum),
+            maximum
+        )
+        task.defer(updateHighlight)
+    else
+        local p = gesture.position
+        gesture.target.Position = UDim2.new(
+            p.X.Scale, p.X.Offset + delta.X,
+            p.Y.Scale, p.Y.Offset + delta.Y
+        )
+    end
+    clampWindow()
+end)
+
+connect(UserInputService.InputEnded, function(input)
+    if gesture and input == gesture.input then
+        gesture = nil
+    end
+end)
+connect(UserInputService.WindowFocusReleased, function()
+    gesture = nil
+end)
+
+local frames, elapsed = 0, 0
+connect(RunService.Heartbeat, function(dt)
+    frames = frames + 1
+    elapsed = elapsed + dt
+    if elapsed < 0.5 then return end
+    values.FPS.Text = tostring(math.floor(frames / elapsed + 0.5))
+    frames, elapsed = 0, 0
+
+    local ok, ping = pcall(player.GetNetworkPing, player)
+    values.Ping.Text = ok and (math.floor(ping * 1000 + 0.5) .. "ms") or "-"
+
+    local mok, mem = pcall(Stats.GetTotalMemoryUsageMb, Stats)
+    values.RAM.Text = mok and (math.floor(mem + 0.5) .. "mb") or "-"
+    values.Time.Text = os.date("%H:%M")
+end)
+
+task.defer(fitScreen)
